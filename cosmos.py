@@ -1,6 +1,7 @@
 
 import math
 import numpy as np
+from numba import njit, prange
 
 from objects import *
 from constants import *
@@ -257,7 +258,10 @@ def update_velocity_rk4(body: CelestialBody, forces: list[tuple[float, float]], 
     ay = sum([f[1] for f in forces]) / body.mass
 
 
-def compute_all_forces(positions, masses):
+def compute_forces(positions, masses):
+
+    # numpy matrix broadcasting
+    # ~10x faster than basic force calculations
 
     delta_r = positions[np.newaxis, :, :] - positions[:, np.newaxis, :]  # (n, n, 2)
 
@@ -266,12 +270,41 @@ def compute_all_forces(positions, masses):
 
     mass_product = masses[:, np.newaxis] * masses[np.newaxis, :]  # (n, n)
 
-    force_magnitudes = G_CONSTANT * mass_product / softened_distance_squared  # Shape: (n, n)
+    force_magnitudes = G_CONSTANT * mass_product / softened_distance_squared  # (n, n)
     unit_directions = delta_r / softened_distance[:, :, np.newaxis]  # (n, n, 2)
 
     forces = force_magnitudes[:, :, np.newaxis] * unit_directions  # (n, n, 2)
 
     net_forces = np.sum(forces, axis=1)  # (n, 2)
+
+    return net_forces
+
+
+@njit(parallel=True)
+def compute_forces_numba(positions, masses):
+
+    # using numba jit compiling and parallelization,
+    # ~10x faster than numpy matrix broadcasting
+
+    n = positions.shape[0]
+    net_forces = np.zeros((n, 2), dtype=np.float64)
+
+    for i in prange(n):
+        for j in range(i + 1, n):
+            dx = positions[j, 0] - positions[i, 0]
+            dy = positions[j, 1] - positions[i, 1]
+            softened_distance_squared = dx * dx + dy * dy + EPSILON * EPSILON
+            softened_distance = np.sqrt(softened_distance_squared)
+            force = G_CONSTANT * masses[i] * masses[j] / softened_distance_squared
+
+            fx = force * dx / softened_distance
+            fy = force * dy / softened_distance
+
+            net_forces[i, 0] += fx
+            net_forces[i, 1] += fy
+
+            net_forces[j, 0] -= fx
+            net_forces[j, 1] -= fy
 
     return net_forces
 
@@ -291,7 +324,7 @@ class Cosmos:
         positions = np.array([body.position for body in self.bodies])
         masses = np.array([body.mass for body in self.bodies])
 
-        self.computed_forces = compute_all_forces(positions, masses)
+        self.computed_forces = compute_forces_numba(positions, masses)
         for i in range(num_bodies):
             self.bodies[i].net_force = tuple(self.computed_forces[i])
 

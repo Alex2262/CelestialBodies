@@ -49,15 +49,15 @@ def setup_three(cosmos):
 
 
 def setup_multi(cosmos):
-    num_bodies = 1000
+    num_bodies = 10000
 
     black_hole = BlackHole("SMBH", 1e33, (0, 0), (0, 0), 2e9,
                            (10, 10, 10), (240, 240, 220))
     cosmos.add_body(black_hole)
 
     bodies = []
-    max_radius = 2e11
-    min_radius = 7e9
+    max_radius = 1e11
+    min_radius = 5e9
 
     for i in range(num_bodies):
 
@@ -83,7 +83,7 @@ def setup_multi(cosmos):
         cosmos.add_body(body)
 
     view_object = black_hole
-    dt = 60
+    dt = 60 * 3
     scale = 4e11
 
     return view_object, scale, dt
