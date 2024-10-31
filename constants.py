@@ -1,3 +1,4 @@
+from numba.cuda.libdevice import exp10
 
 # Screen Information
 WIDTH = 1000
@@ -11,4 +12,7 @@ HOLD_SCALAR = 0.8
 HOLD_VELOCITY_SCALAR = 0.94
 
 G_CONSTANT = 6.67430e-11
-EPSILON = 1e8
+EPSILON = 1e10
+
+MAX_SPEED = 7e5
+MIN_SPEED = 0

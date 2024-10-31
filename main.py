@@ -18,12 +18,12 @@ def main():
     screen = pygame.display.set_mode(screen_size, pygame.RESIZABLE)
 
     screen.fill(SCREEN_COLOR)
-    pygame.display.set_caption("life")
+    pygame.display.set_caption("Celestial Body Simulator")
     #
 
     cosmos = Cosmos()
 
-    view_object, scale, dt = setup_three(cosmos)
+    view_object, scale, dt = setup_multi_grid(cosmos)
     zoom_scale = scale
     zoom_min = max(scale / 1e2, 1)
     zoom_max = scale * 1e3
@@ -113,9 +113,9 @@ def main():
             view_center = get_gui_position((0, 0), zoom_scale, curr_stable_center)
 
         screen.fill(SCREEN_COLOR)
-        draw_body_trails(screen, celestial_bodies, zoom_scale, view_center)
-        draw_body_velocities(screen, celestial_bodies, zoom_scale, view_center)
-        draw_body_forces(screen, celestial_bodies, zoom_scale, view_center)
+        # draw_body_trails(screen, celestial_bodies, zoom_scale, view_center)
+        # draw_body_velocities(screen, celestial_bodies, zoom_scale, view_center)
+        # draw_body_forces(screen, celestial_bodies, zoom_scale, view_center)
         draw_celestial_bodies(screen, celestial_bodies, zoom_scale, view_center)
 
         clock.tick(MAX_FPS)

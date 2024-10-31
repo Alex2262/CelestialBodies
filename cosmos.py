@@ -5,6 +5,7 @@ from numba import njit, prange
 
 from objects import *
 from constants import *
+from pygame.examples.go_over_there import MIN_SPEED
 
 
 def get_gui_position(position, scale, view_center):
@@ -97,14 +98,33 @@ class CelestialBody:
         if len(self.trail) > 5000:
             self.trail.pop(0)
 
+    def taper_color(self):
+        speed = math.sqrt((self.velocity[0] ** 2) + (self.velocity[1] ** 2))
+        speed = max(min(speed, MAX_SPEED), MIN_SPEED)
+        t_speed = (speed - MIN_SPEED) / (MAX_SPEED - MIN_SPEED)
+
+        # print(t_speed)
+        red = int(50 - (50 * t_speed))
+        green = int(80 + (240 - 80) * t_speed)
+        blue = int(250 - (30 * t_speed))
+
+        return red, green, blue
+
     def draw(self, surface, scale, view_center):
-        g_radius = (min(self.radius / scale * WIDTH, self.radius / scale * HEIGHT) + 1)
+        g_radius = int(max((min(self.radius / scale * WIDTH, self.radius / scale * HEIGHT)), 1))
         x, y = get_gui_position(self.position, scale, view_center)
+        x = int(x)
+        y = int(y)
 
         # print(self.name, g_radius, (x, y))
 
-        pygame.draw.circle(surface, self.color,
-                           (x, y), g_radius, 0)
+        tapered_color = self.taper_color()
+
+        if g_radius == 1:
+            surface.set_at((x, y), tapered_color)
+        else:
+            pygame.draw.circle(surface, tapered_color,
+                                (x, y), g_radius, 0)
 
     def draw_trail(self, surface, scale, view_center):
 

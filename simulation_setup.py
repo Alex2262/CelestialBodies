@@ -6,6 +6,7 @@ import random
 import numpy as np
 import pygame
 import time
+import math
 
 
 def weighted_random(lower_bound, upper_bound, weight):
@@ -49,15 +50,15 @@ def setup_three(cosmos):
 
 
 def setup_multi(cosmos):
-    num_bodies = 10000
+    num_bodies = 15000
 
-    black_hole = BlackHole("SMBH", 1e33, (0, 0), (0, 0), 2e9,
+    black_hole = BlackHole("SMBH", 1e33, (0, 0), (1e5, 0), 2e9,
                            (10, 10, 10), (240, 240, 220))
     cosmos.add_body(black_hole)
 
     bodies = []
     max_radius = 1e11
-    min_radius = 5e9
+    min_radius = 9e9
 
     for i in range(num_bodies):
 
@@ -89,3 +90,34 @@ def setup_multi(cosmos):
     return view_object, scale, dt
 
 
+def setup_multi_grid(cosmos):
+
+    num_bodies = 15000
+    rows = int(math.sqrt(num_bodies))
+    cols = num_bodies // rows
+
+    bodies = []
+
+    d = 2e10
+
+    for i in range(num_bodies):
+        r = i / rows
+        c = i % cols
+
+        mass = random.uniform(1e25, 1e30)
+        radius = random.uniform(1e7, 2e8)
+
+        y = (r - rows / 2) * d
+        x = (c - cols / 2) * d
+
+        color = (80, 150, 230)
+
+        body = CelestialBody(f"star_{i + 1}", mass, (x, y), (0, 0), radius, color)
+        bodies.append(body)
+        cosmos.add_body(body)
+
+    view_object = None
+    dt = 60 * 24 * 20
+    scale = 8e12
+
+    return view_object, scale, dt
