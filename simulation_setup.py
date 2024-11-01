@@ -92,13 +92,13 @@ def setup_multi(cosmos):
 
 def setup_multi_grid(cosmos):
 
-    num_bodies = 15000
+    num_bodies = 20000
     rows = int(math.sqrt(num_bodies))
     cols = num_bodies // rows
 
     bodies = []
 
-    d = 2e10
+    d = 3e10
 
     for i in range(num_bodies):
         r = i / rows

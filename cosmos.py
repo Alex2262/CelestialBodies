@@ -120,7 +120,7 @@ class CelestialBody:
 
         tapered_color = self.taper_color()
 
-        if g_radius == 1:
+        if g_radius == 1 and USE_TAPERED_COLOR:
             surface.set_at((x, y), tapered_color)
         else:
             pygame.draw.circle(surface, tapered_color,
