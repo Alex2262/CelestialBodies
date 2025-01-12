@@ -36,21 +36,21 @@ def setup_solar_system(cosmos):
 
 
 def setup_three(cosmos):
-    body1 = CelestialBody("A", 5e28, (-2e9, 0), (0, -20000), 3e8, (200, 10, 10))
-    body2 = CelestialBody("B", 1e28, (4e9, 0), (5100, -1930), 6e7, (10, 10, 200))
-    body3 = CelestialBody("C", 2e28, (0, 5e9), (-10200, 3000), 1.4e8, (200, 200, 50))
+    body1 = CelestialBody("A", 5e28, (-2e9, 0), (0, -20000), 6e8, (200, 10, 10))
+    body2 = CelestialBody("B", 1e28, (4e9, 0), (5100, -1930), 3e8, (10, 10, 200))
+    body3 = CelestialBody("C", 2e28, (0, 5e9), (-10200, 3000), 4e8, (200, 200, 50))
     cosmos.add_body(body1)
     cosmos.add_body(body2)
     cosmos.add_body(body3)
     view_object = body1
-    dt = 60 * 5
+    dt = 60 * 15
     scale = 2e10
 
     return view_object, scale, dt
 
 
 def setup_multi(cosmos):
-    num_bodies = 15000
+    num_bodies = 10000
 
     black_hole = BlackHole("SMBH", 1e33, (0, 0), (1e5, 0), 2e9,
                            (10, 10, 10), (240, 240, 220))
@@ -107,6 +107,8 @@ def setup_multi_grid(cosmos):
         mass = random.uniform(1e25, 1e30)
         radius = random.uniform(1e7, 2e8)
 
+        # radius = 1e9
+
         y = (r - rows / 2) * d
         x = (c - cols / 2) * d
 
@@ -119,5 +121,7 @@ def setup_multi_grid(cosmos):
     view_object = None
     dt = 60 * 24 * 20
     scale = 8e12
+
+    # scale = 1e14
 
     return view_object, scale, dt

@@ -101,7 +101,7 @@ def main():
         hold_velocity[0] *= HOLD_VELOCITY_SCALAR
         hold_velocity[1] *= HOLD_VELOCITY_SCALAR
 
-        cosmos.update(dt)
+        cosmos.update_numba(dt)
 
         # print(curr_stable_center)
 
@@ -116,6 +116,8 @@ def main():
         # draw_body_trails(screen, celestial_bodies, zoom_scale, view_center)
         # draw_body_velocities(screen, celestial_bodies, zoom_scale, view_center)
         # draw_body_forces(screen, celestial_bodies, zoom_scale, view_center)
+        # draw_boundaries(screen, cosmos, zoom_scale, view_center)
+
         draw_celestial_bodies(screen, celestial_bodies, zoom_scale, view_center)
 
         clock.tick(MAX_FPS)
@@ -125,6 +127,33 @@ def main():
         pygame.display.update()
 
     pygame.quit()
+
+
+def draw_boundary(surface, boundary, scale, view_center):
+    x_min = boundary[0]
+    y_min = boundary[1]
+    x_max = boundary[2]
+    y_max = boundary[3]
+
+    p1 = get_gui_position((x_min, y_min), scale, view_center)
+    p2 = get_gui_position((x_max, y_max), scale, view_center)
+
+    pygame.draw.rect(surface, (0, 255, 0), (p1[0], p1[1], p2[0] - p1[0], p2[1] - p1[1]), 1)
+
+
+def draw_boundaries(surface, cosmos, scale, view_center):
+
+    queue = []
+    queue.append(cosmos.quad_tree.root)
+
+    while len(queue) > 0:
+        curr = queue.pop(0)
+
+        if curr.is_leaf():
+            draw_boundary(surface, curr.boundary, scale, view_center)
+
+        for child in curr.children:
+            queue.append(child)
 
 
 def draw_celestial_bodies(surface, celestial_bodies, scale, view_center):

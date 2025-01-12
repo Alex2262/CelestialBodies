@@ -8,10 +8,28 @@ from constants import *
 from pygame.examples.go_over_there import MIN_SPEED
 
 
+@njit(fastmath=True)
 def get_gui_position(position, scale, view_center):
     x = position[0] / scale * WIDTH - view_center[0]
     y = position[1] / scale * HEIGHT - view_center[1]
     return x, y
+
+
+@njit(fastmath=True)
+def taper_color(velocity):
+    vx, vy = velocity
+
+    speed_square = vx * vx + vy * vy
+    speed = math.sqrt(speed_square)
+
+    speed = max(min(speed, MAX_SPEED), MIN_SPEED)
+    t_speed = (speed - MIN_SPEED) / (MAX_SPEED - MIN_SPEED)
+
+    red = int(50 - (50 * t_speed))
+    green = int(80 + (240 - 80) * t_speed)
+    blue = int(250 - (30 * t_speed))
+
+    return red, green, blue
 
 
 def draw_arrow(screen, start, angle, color, thickness, length):
@@ -95,20 +113,8 @@ class CelestialBody:
             self.position[1] + self.velocity[1] * dt + 0.5 * self.acceleration[1] * dt ** 2,
         )
 
-        if len(self.trail) > 5000:
+        if len(self.trail) > TRAIL_LENGTH:
             self.trail.pop(0)
-
-    def taper_color(self):
-        speed = math.sqrt((self.velocity[0] ** 2) + (self.velocity[1] ** 2))
-        speed = max(min(speed, MAX_SPEED), MIN_SPEED)
-        t_speed = (speed - MIN_SPEED) / (MAX_SPEED - MIN_SPEED)
-
-        # print(t_speed)
-        red = int(50 - (50 * t_speed))
-        green = int(80 + (240 - 80) * t_speed)
-        blue = int(250 - (30 * t_speed))
-
-        return red, green, blue
 
     def draw(self, surface, scale, view_center):
         g_radius = int(max((min(self.radius / scale * WIDTH, self.radius / scale * HEIGHT)), 1))
@@ -118,12 +124,14 @@ class CelestialBody:
 
         # print(self.name, g_radius, (x, y))
 
-        tapered_color = self.taper_color()
+        draw_color = self.color
+        if USE_TAPERED_COLOR:
+            draw_color = taper_color(self.velocity)
 
-        if g_radius == 1 and USE_TAPERED_COLOR:
-            surface.set_at((x, y), tapered_color)
+        if g_radius == 1:
+            surface.set_at((x, y), draw_color)
         else:
-            pygame.draw.circle(surface, tapered_color,
+            pygame.draw.circle(surface, draw_color,
                                 (x, y), g_radius, 0)
 
     def draw_trail(self, surface, scale, view_center):
@@ -209,6 +217,116 @@ class BlackHole(CelestialBody):
 
         pygame.draw.circle(surface, self.color2, (x, y), o_radius, 0)
         pygame.draw.circle(surface, self.color,(x, y), g_radius, 0)
+
+
+class BasicBody:
+    def __init__(self, mass, position):
+        self.mass = mass
+        self.position = position
+
+
+class QuadTreeNode:
+    def __init__(self, boundary, depth=0):
+        self.boundary = boundary  # (x_min, y_min, x_max, y_max)
+        self.center_of_mass = (0, 0)
+        self.total_mass = 0
+        self.basic_body = None
+        self.children = []
+        self.depth = depth
+
+    def is_leaf(self):
+        return len(self.children) == 0
+
+    def in_boundary(self, position):
+        x_min, y_min, x_max, y_max = self.boundary
+        x, y = position
+        return x_min <= x <= x_max and y_min <= y <= y_max
+
+    def subdivide(self):
+        x_min, y_min, x_max, y_max = self.boundary
+        x_mid = (x_min + x_max) / 2
+        y_mid = (y_min + y_max) / 2
+
+        self.children = [
+            QuadTreeNode((x_min, y_min, x_mid, y_mid), self.depth + 1),
+            QuadTreeNode((x_mid, y_min, x_max, y_mid), self.depth + 1),
+            QuadTreeNode((x_min, y_mid, x_mid, y_max), self.depth + 1),
+            QuadTreeNode((x_mid, y_mid, x_max, y_max), self.depth + 1)
+        ]
+
+    def update_center_of_mass(self):
+        if self.is_leaf() and self.basic_body is not None:
+            self.center_of_mass = self.basic_body.position
+            self.total_mass = self.basic_body.mass
+
+            return
+
+        total_mass = 0
+        weighted_position = [0, 0]
+        for child in self.children:
+            if child.total_mass > 0:
+                total_mass += child.total_mass
+                weighted_position[0] += child.center_of_mass[0] * child.total_mass
+                weighted_position[1] += child.center_of_mass[1] * child.total_mass
+
+        if total_mass > 0:
+            self.center_of_mass = (weighted_position[0] / total_mass,
+                                   weighted_position[1] / total_mass)
+            self.total_mass = total_mass
+
+    def insert(self, basic_body):
+        if not self.in_boundary(basic_body.position):
+            return False
+
+        if self.is_leaf():
+            if self.basic_body is None:  # Empty node
+                self.basic_body = basic_body
+                self.center_of_mass = basic_body.position
+                self.total_mass = basic_body.mass
+            else:  # Subdivide and redistribute bodies
+                self.subdivide()
+                self.insert(self.basic_body)
+                self.basic_body = None
+                self.insert(basic_body)
+        else:
+            for child in self.children:
+                if child.insert(basic_body):
+                    break
+
+        self.update_center_of_mass()
+        return True
+
+    def calculate_force(self, basic_body):
+        if self.total_mass == 0 or (self.basic_body == basic_body):
+            return 0, 0
+
+        dx = self.center_of_mass[0] - basic_body.position[0]
+        dy = self.center_of_mass[1] - basic_body.position[1]
+        distance_squared = dx ** 2 + dy ** 2
+        softened_distance_squared = distance_squared + EPSILON ** 2
+        softened_distance = math.sqrt(softened_distance_squared)
+
+        cutoff = max(self.boundary[2] - self.boundary[0], self.boundary[3] - self.boundary[1]) / softened_distance
+
+        # print("DIST:", cutoff)
+
+        if self.is_leaf() or cutoff < THETA:
+            force = G_CONSTANT * self.total_mass * basic_body.mass / softened_distance_squared
+            force_x = force * dx / softened_distance
+            force_y = force * dy / softened_distance
+            return force_x, force_y
+        else:
+            net_force_x, net_force_y = 0, 0
+            for child in self.children:
+                fx, fy = child.calculate_force(basic_body)
+                net_force_x += fx
+                net_force_y += fy
+            return net_force_x, net_force_y
+
+
+class QuadTree:
+    def __init__(self, boundary):
+        self.root = QuadTreeNode(boundary)
 
 
 def compute_gravitational_force(body1: CelestialBody, body2: CelestialBody):
@@ -332,12 +450,24 @@ def compute_forces_numba(positions, masses):
 class Cosmos:
     def __init__(self):
         self.bodies = []
+        self.boundary = (1e100, 1e100, -1e100, -1e100)
         self.computed_forces = np.zeros((1, 2))
+
+        self.quad_tree = QuadTree(self.boundary)
+
+    def update_boundary(self, position):
+        x_min = min(self.boundary[0], position[0])
+        y_min = min(self.boundary[1], position[1])
+        x_max = max(self.boundary[2], position[0])
+        y_max = max(self.boundary[3], position[1])
+
+        self.boundary = (x_min, y_min, x_max, y_max)
 
     def add_body(self, body):
         self.bodies.append(body)
+        self.update_boundary(body.position)
 
-    def update(self, dt: int):
+    def update_numba(self, dt: int):
 
         num_bodies = len(self.bodies)
 
@@ -349,6 +479,26 @@ class Cosmos:
             self.bodies[i].net_force = tuple(self.computed_forces[i])
 
         for body in self.bodies:
+
+            update_velocity_verlet(body, body.net_force, dt)
+            body.update_position_verlet(dt)
+
+
+    def update_qt(self, dt: int):
+
+        self.boundary = (1e100, 1e100, -1e100, -1e100)
+        for body in self.bodies:
+            self.update_boundary(body.position)
+
+        self.quad_tree = QuadTree(self.boundary)
+
+        for body in self.bodies:
+            self.quad_tree.root.insert(BasicBody(body.mass, body.position))
+
+        for body in self.bodies:
+            body.net_force = self.quad_tree.root.calculate_force(body)
+
+        for body in self.bodies:
             if not body.acceleration_computed:
                 update_velocity(body, body.net_force, dt)
                 body.update_position(dt)
@@ -356,4 +506,5 @@ class Cosmos:
             else:
                 update_velocity_verlet(body, body.net_force, dt)
                 body.update_position_verlet(dt)
+
 
